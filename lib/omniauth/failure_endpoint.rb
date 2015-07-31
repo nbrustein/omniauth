@@ -28,6 +28,13 @@ module OmniAuth
     def redirect_to_failure
       message_key = env['omniauth.error.type']
       new_path = "#{env['SCRIPT_NAME']}#{OmniAuth.config.path_prefix}/failure?message=#{message_key}#{origin_query_param}#{strategy_name_query_param}"
+      
+      # add these back into the session so they will be available to
+      # the failure endpoint
+      session = @env['rack.session']
+      session['omniauth.origin'] = @env['omniauth.origin']
+      session['omniauth.params'] = @env['omniauth.params']
+
       Rack::Response.new(['302 Moved'], 302, 'Location' => new_path).finish
     end
 

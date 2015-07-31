@@ -182,6 +182,7 @@ module OmniAuth
       return options_call if on_auth_path? && options_request?
       return request_call if on_request_path? && OmniAuth.config.allowed_request_methods.include?(request.request_method.downcase.to_sym)
       return callback_call if on_callback_path?
+      return callback_failure_call if on_callback_failure_path?
       return other_phase if respond_to?(:other_phase)
       @app.call(env)
     end
@@ -227,6 +228,18 @@ module OmniAuth
       callback_phase
     end
 
+    # by default, a failure in the callback_call redirects to here
+    def callback_failure_call
+      setup_phase
+      log :info, 'Callback failure phase initiated.'
+      @env['omniauth.origin'] = session.delete('omniauth.origin')
+      @env['omniauth.origin'] = nil if env['omniauth.origin'] == ''
+      @env['omniauth.params'] = session.delete('omniauth.params') || {}
+      # FIXME: support before_callback_failure_phase
+      #OmniAuth.config.before_callback_phase.call(@env) if OmniAuth.config.before_callback_phase
+      call_app!
+    end
+
     # Returns true if the environment recognizes either the
     # request or callback path.
     def on_auth_path?
@@ -243,6 +256,10 @@ module OmniAuth
 
     def on_callback_path?
       on_path?(callback_path)
+    end
+
+    def on_callback_failure_path?
+      on_path?(callback_failure_path)
     end
 
     def on_path?(path)
@@ -386,6 +403,15 @@ module OmniAuth
         path ||= current_path if options[:callback_path].respond_to?(:call) && options[:callback_path].call(env)
         path ||= custom_path(:request_path)
         path ||= "#{path_prefix}/#{name}/callback"
+        path
+      end
+    end
+
+    def callback_failure_path
+      @callback_failure_path ||= begin
+        path = options[:callback_failure_path] if options[:callback_failure_path].is_a?(String)
+        path ||= current_path if options[:callback_failure_path].respond_to?(:call) && options[:callback_failure_path].call(env)
+        path ||= "#{path_prefix}/failure"
         path
       end
     end
